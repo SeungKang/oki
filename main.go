@@ -2,6 +2,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"golang.org/x/sys/unix"
@@ -35,6 +36,11 @@ func mainWithError() error {
 		"u",
 		"the unveil(2) colon separated permission:filepath (can be specified multiple times)")
 
+	allowNoPromises := flag.Bool(
+		"k",
+		false,
+		"allow no pledge(2) promises to be specified")
+
 	flag.Parse()
 
 	if flag.NArg() == 0 {
@@ -51,7 +57,7 @@ func mainWithError() error {
 	if err != nil {
 		return fmt.Errorf("failed to unveil %q - %w", exePath, err)
 	}
-	
+
 	for _, unveil := range unveils.unveils {
 		err := unix.Unveil(unveil.filePath, unveil.perms)
 		if err != nil {
@@ -64,10 +70,18 @@ func mainWithError() error {
 		return fmt.Errorf("failed to unveil block - %w", err)
 	}
 
-	promisesStr := strings.Join(promises.promises, " ")
-	err = unix.PledgeExecpromises(promisesStr)
-	if err != nil {
-		return fmt.Errorf("failed pledge exec - %w", err)
+	promisesStr := strings.TrimSpace(strings.Join(promises.promises, " "))
+
+	// TODO make -k a constant
+	if promisesStr == "" && !*allowNoPromises {
+		return errors.New("please specify a promise with '-p' or use '-k' to allow no promises")
+	}
+
+	if promisesStr != "" {
+		err = unix.PledgeExecpromises(promisesStr)
+		if err != nil {
+			return fmt.Errorf("failed pledge exec - %w", err)
+		}
 	}
 
 	// TODO filter environment variables
