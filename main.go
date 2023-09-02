@@ -5,12 +5,13 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"golang.org/x/sys/unix"
 	"log"
 	"os"
 	"os/exec"
 	"strings"
 	"syscall"
+
+	"golang.org/x/sys/unix"
 )
 
 func main() {
@@ -22,6 +23,7 @@ func main() {
 	}
 }
 
+// TODO make debug showing what pledges and unveils are used
 // oki -p "stdio" -p "inet" -p "error" -u "r:/tmp" -u "rc:/foo" -- rizin -AA /tmp/memla
 func mainWithError() error {
 	var promises promiseFlag
@@ -41,6 +43,11 @@ func mainWithError() error {
 		false,
 		"allow no pledge(2) promises to be specified")
 
+	skipExeUnveil := flag.Bool(
+		"x",
+		false,
+		"skip unveil(2) of the exe path")
+
 	flag.Parse()
 
 	if flag.NArg() == 0 {
@@ -53,9 +60,11 @@ func mainWithError() error {
 		return fmt.Errorf("failed to find %q PATH - %w", exeName, err)
 	}
 
-	err = unix.Unveil(exePath, "rx")
-	if err != nil {
-		return fmt.Errorf("failed to unveil %q - %w", exePath, err)
+	if !*skipExeUnveil {
+		err = unix.Unveil(exePath, "rx")
+		if err != nil {
+			return fmt.Errorf("failed to automatically unveil %q - %w", exePath, err)
+		}
 	}
 
 	for _, unveil := range unveils.unveils {
