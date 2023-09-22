@@ -2,12 +2,15 @@
 package main
 
 import (
+	"debug/elf"
 	"errors"
 	"flag"
 	"fmt"
+	"io/fs"
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -25,6 +28,8 @@ func main() {
 
 // TODO make debug showing what pledges and unveils are used
 // oki -p "stdio" -p "inet" -p "error" -u "r:/tmp" -u "rc:/foo" -- rizin -AA /tmp/memla
+// oki -U "r:/usr/local/lib/librz_.*" -- rizin -AA /tmp/memla
+// oki -U "r:/usr/local/lib/librz_*" -- rizin -AA /tmp/memla
 func mainWithError() error {
 	var promises promiseFlag
 	flag.Var(
@@ -48,6 +53,12 @@ func mainWithError() error {
 		false,
 		"skip unveil(2) of the exe path")
 
+	getELFDepUnveilPaths := flag.Bool(
+		"R",
+		false,
+		"generate the unveil(2) rules for exe dependencies and exit\n"+
+			"(assumes exe is an ELF file)")
+
 	flag.Parse()
 
 	if flag.NArg() == 0 {
@@ -55,9 +66,21 @@ func mainWithError() error {
 	}
 
 	exeName := flag.Arg(0)
+	// TODO consider not using this as default behavior
 	exePath, err := exec.LookPath(exeName)
 	if err != nil {
 		return fmt.Errorf("failed to find %q PATH - %w", exeName, err)
+	}
+
+	// TODO apply pledge and unveil to getELFDepUnveilPaths
+	if *getELFDepUnveilPaths {
+		foundLibPaths := make(map[string]struct{})
+		err := elfDepUnveilPaths(exePath, foundLibPaths)
+		if err != nil {
+			return fmt.Errorf("failed to get ELF dependencies unveil paths - %w", err)
+		}
+
+		return nil
 	}
 
 	if !*skipExeUnveil {
@@ -97,6 +120,81 @@ func mainWithError() error {
 	err = syscall.Exec(exePath, append([]string{exePath}, flag.Args()[1:]...), os.Environ())
 	if err != nil {
 		return fmt.Errorf("failed to exec %q - %w", exePath, err)
+	}
+
+	return nil
+}
+
+func elfDepUnveilPaths(elfPath string, foundLibPaths map[string]struct{}) error {
+	f, err := elf.Open(elfPath)
+	if err != nil {
+		return fmt.Errorf("failed to open ELF %q - %w", elfPath, err)
+	}
+	defer f.Close()
+
+	// TODO check if no imported libraries returns an error
+	libs, err := f.ImportedLibraries()
+	if err != nil {
+		return fmt.Errorf("failed to find imported libraries - %w", err)
+	}
+
+	// TODO do not error if there are no DT_RUNPATH tags
+	// TODO check if dynstring returns error when there are no instances of DT_RUNPATH
+	runPaths, err := f.DynString(elf.DT_RUNPATH)
+	if err != nil {
+		return fmt.Errorf("failed to find DT_RUNPATH tag - %w", err)
+	}
+
+	// TODO should we trust the elf to tell us which directories to load libraries from
+	runPaths = append(runPaths, "/usr/lib")
+
+	for _, lib := range libs {
+		if strings.Contains(lib, "../") {
+			return fmt.Errorf("imported library contains ../ - %q", lib)
+		}
+
+		if strings.Contains(lib, "/") {
+			return fmt.Errorf("imported library contains / - %q", lib)
+		}
+
+		foundLib := false
+
+		for _, runPath := range runPaths {
+			libPath := filepath.Join(runPath, lib)
+
+			fileInfo, err := os.Stat(libPath)
+			if err != nil {
+				if errors.Is(err, fs.ErrNotExist) {
+					continue
+				}
+
+				return fmt.Errorf("failed to stat library path: %q - %w", libPath, err)
+			}
+
+			if fileInfo.IsDir() {
+				return fmt.Errorf("library path is a directory: %q", libPath)
+			}
+
+			_, hasLib := foundLibPaths[libPath]
+			if !hasLib {
+				log.Printf("lib path: %q - from: %q", libPath, elfPath)
+				foundLibPaths[libPath] = struct{}{}
+
+				err = elfDepUnveilPaths(libPath, foundLibPaths)
+				if err != nil {
+					return err
+				}
+			}
+
+			foundLib = true
+			break
+		}
+
+		if !foundLib {
+			log.Printf("could not find the library path for: %q", lib)
+			continue
+		}
+
 	}
 
 	return nil
