@@ -2,10 +2,12 @@
 package main
 
 import (
+	"bytes"
 	"debug/elf"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	"os"
@@ -15,6 +17,12 @@ import (
 	"syscall"
 
 	"golang.org/x/sys/unix"
+)
+
+const (
+	outputPrefixEnv = "OKI_OUTPUT_PREFIX"
+
+	autogenerateUnveilRulesArg = "u"
 )
 
 func main() {
@@ -40,7 +48,7 @@ func mainWithError() error {
 	var unveils unveilFlag
 	flag.Var(
 		&unveils,
-		"u",
+		autogenerateUnveilRulesArg,
 		"the unveil(2) colon separated permission:filepath (can be specified multiple times)")
 
 	allowNoPromises := flag.Bool(
@@ -56,8 +64,9 @@ func mainWithError() error {
 	getELFDepUnveilPaths := flag.Bool(
 		"R",
 		false,
-		"generate the unveil(2) rules for exe dependencies and exit\n"+
-			"(assumes exe is an ELF file)")
+		"generate the unveil(2) rules for exe dependencies and exit.\n"+
+			"this assumes exe is an ELF file (specify rule prefix by setting the\n"+
+			outputPrefixEnv+" environment variable")
 
 	flag.Parse()
 
@@ -75,9 +84,16 @@ func mainWithError() error {
 	// TODO apply pledge and unveil to getELFDepUnveilPaths
 	if *getELFDepUnveilPaths {
 		foundLibPaths := make(map[string]struct{})
-		err := elfDepUnveilPaths(exePath, foundLibPaths)
+		libBuf := bytes.NewBuffer(nil)
+
+		err := elfDepUnveilPaths(exePath, foundLibPaths, libBuf)
 		if err != nil {
 			return fmt.Errorf("failed to get ELF dependencies unveil paths - %w", err)
+		}
+
+		_, err = os.Stdout.Write(libBuf.Bytes())
+		if err != nil {
+			return fmt.Errorf("failed to write unveil rules to stdout - %w", err)
 		}
 
 		return nil
@@ -125,7 +141,7 @@ func mainWithError() error {
 	return nil
 }
 
-func elfDepUnveilPaths(elfPath string, foundLibPaths map[string]struct{}) error {
+func elfDepUnveilPaths(elfPath string, foundLibPaths map[string]struct{}, libBuf io.Writer) error {
 	f, err := elf.Open(elfPath)
 	if err != nil {
 		return fmt.Errorf("failed to open ELF %q - %w", elfPath, err)
@@ -175,12 +191,16 @@ func elfDepUnveilPaths(elfPath string, foundLibPaths map[string]struct{}) error 
 				return fmt.Errorf("library path is a directory: %q", libPath)
 			}
 
+			// TODO add check for shell characters
+			// TODO indent shell script to indicate child dependent libs
 			_, hasLib := foundLibPaths[libPath]
 			if !hasLib {
-				log.Printf("lib path: %q - from: %q", libPath, elfPath)
+				libBuf.Write([]byte(os.Getenv(outputPrefixEnv) + "-" + autogenerateUnveilRulesArg +
+					" 'r:" + libPath + "' \\\n"))
+
 				foundLibPaths[libPath] = struct{}{}
 
-				err = elfDepUnveilPaths(libPath, foundLibPaths)
+				err = elfDepUnveilPaths(libPath, foundLibPaths, libBuf)
 				if err != nil {
 					return err
 				}
