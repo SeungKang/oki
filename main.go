@@ -199,7 +199,7 @@ func elfDepUnveilPaths(elfPath string, foundLibPaths map[string]struct{}, libBuf
 			// TODO indent shell script to indicate child dependent libs
 			_, hasLib := foundLibPaths[libPath]
 			if !hasLib {
-				libBuf.Write([]byte(os.Getenv(outputPrefixEnv) + "-" + autogenerateUnveilRulesArg +
+				libBuf.Write([]byte(os.Getenv(outputPrefixEnv) + "-" + unveilsArg +
 					" 'r:" + libPath + "' \\\n"))
 
 				foundLibPaths[libPath] = struct{}{}
