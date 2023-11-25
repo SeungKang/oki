@@ -22,7 +22,11 @@ import (
 const (
 	outputPrefixEnv = "OKI_OUTPUT_PREFIX"
 
-	autogenerateUnveilRulesArg = "u"
+	promisesArg                = "p"
+	unveilsArg                 = "u"
+	allowNoPromisesArg         = "k"
+	skipExeUnveilArg           = "x"
+	autogenerateUnveilRulesArg = "R"
 )
 
 func main() {
@@ -42,27 +46,27 @@ func mainWithError() error {
 	var promises promiseFlag
 	flag.Var(
 		&promises,
-		"p",
+		promisesArg,
 		"the pledge(2) promise string (can be specified multiple times)")
 
 	var unveils unveilFlag
 	flag.Var(
 		&unveils,
-		autogenerateUnveilRulesArg,
+		unveilsArg,
 		"the unveil(2) colon separated permission:filepath (can be specified multiple times)")
 
 	allowNoPromises := flag.Bool(
-		"k",
+		allowNoPromisesArg,
 		false,
 		"allow no pledge(2) promises to be specified")
 
 	skipExeUnveil := flag.Bool(
-		"x",
+		skipExeUnveilArg,
 		false,
 		"skip unveil(2) of the exe path")
 
 	getELFDepUnveilPaths := flag.Bool(
-		"R",
+		autogenerateUnveilRulesArg,
 		false,
 		"generate the unveil(2) rules for exe dependencies and exit.\n"+
 			"this assumes exe is an ELF file (specify rule prefix by setting the\n"+
@@ -99,6 +103,20 @@ func mainWithError() error {
 		return nil
 	}
 
+	promisesStr := strings.TrimSpace(strings.Join(promises.promises, " "))
+
+	if promisesStr == "" && !*allowNoPromises {
+		return fmt.Errorf("please specify a promise with '-%s' or use '-%s' to allow no promises",
+			promisesArg, allowNoPromisesArg)
+	}
+
+	if promisesStr != "" {
+		err := unix.PledgeExecpromises(promisesStr)
+		if err != nil {
+			return fmt.Errorf("failed pledge exec - %w", err)
+		}
+	}
+
 	if !*skipExeUnveil {
 		err = unix.Unveil(exePath, "rx")
 		if err != nil {
@@ -116,20 +134,6 @@ func mainWithError() error {
 	err = unix.UnveilBlock()
 	if err != nil {
 		return fmt.Errorf("failed to unveil block - %w", err)
-	}
-
-	promisesStr := strings.TrimSpace(strings.Join(promises.promises, " "))
-
-	// TODO make -k a constant
-	if promisesStr == "" && !*allowNoPromises {
-		return errors.New("please specify a promise with '-p' or use '-k' to allow no promises")
-	}
-
-	if promisesStr != "" {
-		err = unix.PledgeExecpromises(promisesStr)
-		if err != nil {
-			return fmt.Errorf("failed pledge exec - %w", err)
-		}
 	}
 
 	// TODO filter environment variables
