@@ -137,18 +137,24 @@ func mainWithError() error {
 	}
 
 	exeName := flag.Arg(0)
-	// TODO consider not using this as default behavior
 	exePath, err := exec.LookPath(exeName)
 	if err != nil {
 		return fmt.Errorf("failed to find %q PATH - %w", exeName, err)
 	}
 
-	// TODO apply pledge and unveil to getELFDepUnveilPaths
+	// TODO apply unveil to getELFDepUnveilPaths
+	// Default to unveiling /usr/lib and /usr/local/lib and make customizable with environment variable.
+	// Check if run path contains a non permitted directory and return error message with directory to user.
 	if *getELFDepUnveilPaths {
+		err := unix.Pledge("stdio rpath", "")
+		if err != nil {
+			return fmt.Errorf("failed to pledge - %w", err)
+		}
+
 		foundLibPaths := make(map[string]struct{})
 		libBuf := bytes.NewBuffer(nil)
 
-		err := elfDepUnveilPaths(exePath, foundLibPaths, libBuf)
+		err = elfDepUnveilPaths(exePath, foundLibPaths, libBuf)
 		if err != nil {
 			return fmt.Errorf("failed to get ELF dependencies unveil paths - %w", err)
 		}
@@ -183,6 +189,8 @@ func mainWithError() error {
 	}
 
 	for _, unveil := range unveils.unveils {
+		// TODO add flag to enable these log messages
+		log.Printf("unveiling %q", unveil.String())
 		err := unix.Unveil(unveil.filePath, unveil.perms)
 		if err != nil {
 			return fmt.Errorf("failed to unveil %q - %w", unveil.String(), err)
@@ -210,10 +218,13 @@ func elfDepUnveilPaths(elfPath string, foundLibPaths map[string]struct{}, libBuf
 	}
 	defer f.Close()
 
-	// TODO check if no imported libraries returns an error
 	libs, err := f.ImportedLibraries()
 	if err != nil {
 		return fmt.Errorf("failed to find imported libraries - %w", err)
+	}
+
+	if len(libs) == 0 {
+		return nil
 	}
 
 	// TODO do not error if there are no DT_RUNPATH tags
@@ -272,6 +283,7 @@ func elfDepUnveilPaths(elfPath string, foundLibPaths map[string]struct{}, libBuf
 			break
 		}
 
+		// TODO make this an error message and add log to figure out why it could not find library
 		if !foundLib {
 			log.Printf("could not find the library path for: %q", lib)
 			continue
