@@ -227,8 +227,6 @@ func elfDepUnveilPaths(elfPath string, foundLibPaths map[string]struct{}, libBuf
 		return nil
 	}
 
-	// TODO do not error if there are no DT_RUNPATH tags
-	// TODO check if dynstring returns error when there are no instances of DT_RUNPATH
 	runPaths, err := f.DynString(elf.DT_RUNPATH)
 	if err != nil {
 		return fmt.Errorf("failed to find DT_RUNPATH tag - %w", err)
