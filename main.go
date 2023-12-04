@@ -20,8 +20,45 @@ import (
 )
 
 const (
+	appName = "oki"
+	usage   = appName + `
+
+SYNOPSIS
+  ` + appName + ` [options] </path/to/program|program-in-path>'
+
+DESCRIPTION
+  ` + appName + ` automates execution of pledge(2) and unveil(2) to reduce the blast radius of a program.
+TODO explain blast radius
+
+EXAMPLES
+  For examples, please execute: ` + appName + ` -` + advHelpArg + `
+
+SEE ALSO
+  pledge(2)
+  unveil(2)
+
+OPTIONS
+`
+	advHelpDoc = appName + `
+
+EXAMPLES
+
+TODO example of -R
+
+The following example runs oki on the git program.
+It enforces the pledge(2) promises: "stdio", "inet", and "error".
+It also runs unveil(2) on the paths:
+  - "/tmp" for read (r) operations
+  - "/foo" for read (r) and create/remove (c) operations
+
+  $` + appName + ` -` + promisesArg + ` "stdio" -` + promisesArg + ` "inet" -` + promisesArg + ` "error" -` +
+		unveilsArg + ` "r:/tmp" -` + unveilsArg + ` "rc:/foo" -- git pull
+`
+
 	outputPrefixEnv = "OKI_OUTPUT_PREFIX"
 
+	helpArg                    = "h"
+	advHelpArg                 = "H"
 	promisesArg                = "p"
 	unveilsArg                 = "u"
 	allowNoPromisesArg         = "k"
@@ -43,6 +80,16 @@ func main() {
 // oki -U "r:/usr/local/lib/librz_.*" -- rizin -AA /tmp/memla
 // oki -U "r:/usr/local/lib/librz_*" -- rizin -AA /tmp/memla
 func mainWithError() error {
+	help := flag.Bool(
+		helpArg,
+		false,
+		"Display this information")
+
+	advHelp := flag.Bool(
+		advHelpArg,
+		false,
+		"Display advanced usage information and examples")
+
 	var promises promiseFlag
 	flag.Var(
 		&promises,
@@ -70,9 +117,20 @@ func mainWithError() error {
 		false,
 		"generate the unveil(2) rules for exe dependencies and exit.\n"+
 			"this assumes exe is an ELF file (specify rule prefix by setting the\n"+
-			outputPrefixEnv+" environment variable")
+			outputPrefixEnv+" environment variable)")
 
 	flag.Parse()
+
+	if *help {
+		_, _ = os.Stderr.WriteString(usage)
+		flag.PrintDefaults()
+		os.Exit(1)
+	}
+
+	if *advHelp {
+		_, _ = os.Stderr.WriteString(advHelpDoc)
+		os.Exit(1)
+	}
 
 	if flag.NArg() == 0 {
 		return fmt.Errorf("please specify a program to execute")
