@@ -71,14 +71,14 @@ EXAMPLES
 
 	outputPrefixEnv = "OKI_OUTPUT_PREFIX"
 
-	helpArg                    = "h"
+	passEnvironArg             = "E"
 	advHelpArg                 = "H"
+	autogenerateUnveilRulesArg = "R"
+	helpArg                    = "h"
+	allowNoPromisesArg         = "k"
 	promisesArg                = "p"
 	unveilsArg                 = "u"
-	allowNoPromisesArg         = "k"
 	skipExeUnveilArg           = "x"
-	autogenerateUnveilRulesArg = "R"
-	passEnvironArg             = "E"
 )
 
 func main() {
@@ -95,15 +95,33 @@ func main() {
 // oki -U "r:/usr/local/lib/librz_.*" -- rizin -AA /tmp/memla
 // oki -U "r:/usr/local/lib/librz_*" -- rizin -AA /tmp/memla
 func mainWithError() error {
-	help := flag.Bool(
-		helpArg,
+	passEnviron := flag.Bool(
+		passEnvironArg,
 		false,
-		"Display this information")
+		"Pass all environment variables to the child process. If not\n"+
+			"specified only HOME and PATH are passed")
 
 	advHelp := flag.Bool(
 		advHelpArg,
 		false,
 		"Display advanced usage information and examples")
+
+	getELFDepUnveilPaths := flag.Bool(
+		autogenerateUnveilRulesArg,
+		false,
+		"Generate the unveil(2) rules for exe dependencies and exit.\n"+
+			"This assumes exe is an ELF file (specify rule prefix by setting the\n"+
+			outputPrefixEnv+" environment variable)")
+
+	help := flag.Bool(
+		helpArg,
+		false,
+		"Display this information")
+
+	allowNoPromises := flag.Bool(
+		allowNoPromisesArg,
+		false,
+		"Allow no pledge(2) promises to be specified")
 
 	// change the default argument name from "value"
 	// https://stackoverflow.com/questions/71807493/go-flag-usage-description-contains-the-word-value
@@ -120,28 +138,10 @@ func mainWithError() error {
 		"The unveil(2) colon separated `permission:path` (can be\n"+
 			"specified multiple times)")
 
-	allowNoPromises := flag.Bool(
-		allowNoPromisesArg,
-		false,
-		"Allow no pledge(2) promises to be specified")
-
 	skipExeUnveil := flag.Bool(
 		skipExeUnveilArg,
 		false,
 		"Skip unveil(2) of the exe path")
-
-	getELFDepUnveilPaths := flag.Bool(
-		autogenerateUnveilRulesArg,
-		false,
-		"Generate the unveil(2) rules for exe dependencies and exit.\n"+
-			"This assumes exe is an ELF file (specify rule prefix by setting the\n"+
-			outputPrefixEnv+" environment variable)")
-
-	passEnviron := flag.Bool(
-		passEnvironArg,
-		false,
-		"Pass all environment variables to the child process. If not\n"+
-			"specified only HOME and PATH are passed")
 
 	flag.Parse()
 
