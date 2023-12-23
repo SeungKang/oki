@@ -1,6 +1,7 @@
-// (cd ~/src/oki && GOOS=openbsd go build && scp oki re-shared-obsd:~/)
+// oki automates the execution of pledge(2) and unveil(2)
 package main
 
+// (cd ~/src/oki && GOOS=openbsd go build && scp oki re-shared-obsd:~/)
 import (
 	"bytes"
 	"debug/elf"
@@ -24,35 +25,48 @@ const (
 	usage   = appName + `
 
 SYNOPSIS
-  ` + appName + ` [options] </path/to/program|program-in-path>'
+  ` + appName + ` [options] </path/to/program|program-in-path>
 
 DESCRIPTION
-  ` + appName + ` automates execution of pledge(2) and unveil(2) to reduce the blast radius of a program.
-TODO explain blast radius
+  ` + appName + ` automates execution of pledge(2) and unveil(2) to reduce the blast
+  radius of a program. Blast radius refers to the overall impact of a potential
+  security compromise.
+
+  The promise string provided to the -` + promisesArg + ` flag is passed to the pledge(2)
+  system call and should match one of the promises listed in pledge(2) manual.
+
+  The string provided to the -` + unveilsArg + ` flag should be formatted as "permission:path"
+  (e.g. "r:/tmp"). The permission string should match one or more of the
+  permission characters in the unveil(2) manual.
+
+  By default ` + appName + ` will pass the HOME and PATH environment variables to the
+  child process. This behavior can be changed with the -` + passEnvironArg + ` flag to pass all
+  environment variables to the child process.
 
 EXAMPLES
   For examples, please execute: ` + appName + ` -` + advHelpArg + `
 
 SEE ALSO
-  pledge(2)
-  unveil(2)
+  pledge(2), unveil(2)
 
 OPTIONS
 `
 	advHelpDoc = appName + `
 
 EXAMPLES
+  o  The following example autogenerates unveil rules for the rizin program:
 
-TODO example of -R
+       $ ` + appName + ` -` + autogenerateUnveilRulesArg + ` /usr/local/bin/rizin` + `
 
-The following example runs oki on the git program.
-It enforces the pledge(2) promises: "stdio", "inet", and "error".
-It also runs unveil(2) on the paths:
-  - "/tmp" for read (r) operations
-  - "/foo" for read (r) and create/remove (c) operations
+  o  The following example runs ` + appName + ` on the git program:
 
-  $` + appName + ` -` + promisesArg + ` "stdio" -` + promisesArg + ` "inet" -` + promisesArg + ` "error" -` +
-		unveilsArg + ` "r:/tmp" -` + unveilsArg + ` "rc:/foo" -- git pull
+       $ ` + appName + ` -` + promisesArg + ` "stdio" -` + promisesArg + ` "inet" -` + promisesArg +
+		` "error" -` + unveilsArg + ` "r:/tmp" -` + unveilsArg + ` "rc:/foo" -- git pull
+
+     The above example enforces the pledge(2) promises: "stdio", "inet",
+     and "error". It also runs unveil(2) on the following paths:
+       - "/tmp" for read (r) operations
+       - "/foo" for read (r) and create/remove (c) operations
 `
 
 	outputPrefixEnv = "OKI_OUTPUT_PREFIX"
@@ -64,6 +78,7 @@ It also runs unveil(2) on the paths:
 	allowNoPromisesArg         = "k"
 	skipExeUnveilArg           = "x"
 	autogenerateUnveilRulesArg = "R"
+	passEnvironArg             = "E"
 )
 
 func main() {
@@ -90,33 +105,36 @@ func mainWithError() error {
 		false,
 		"Display advanced usage information and examples")
 
+	// change the default argument name from "value"
+	// https://stackoverflow.com/questions/71807493/go-flag-usage-description-contains-the-word-value
 	var promises promiseFlag
 	flag.Var(
 		&promises,
 		promisesArg,
-		"the pledge(2) promise string (can be specified multiple times)")
+		"The pledge(2) `promise` string (can be specified multiple times)")
 
 	var unveils unveilFlag
 	flag.Var(
 		&unveils,
 		unveilsArg,
-		"the unveil(2) colon separated permission:filepath (can be specified multiple times)")
+		"The unveil(2) colon separated `permission:path` (can be\n"+
+			"specified multiple times)")
 
 	allowNoPromises := flag.Bool(
 		allowNoPromisesArg,
 		false,
-		"allow no pledge(2) promises to be specified")
+		"Allow no pledge(2) promises to be specified")
 
 	skipExeUnveil := flag.Bool(
 		skipExeUnveilArg,
 		false,
-		"skip unveil(2) of the exe path")
+		"Skip unveil(2) of the exe path")
 
 	getELFDepUnveilPaths := flag.Bool(
 		autogenerateUnveilRulesArg,
 		false,
-		"generate the unveil(2) rules for exe dependencies and exit.\n"+
-			"this assumes exe is an ELF file (specify rule prefix by setting the\n"+
+		"Generate the unveil(2) rules for exe dependencies and exit.\n"+
+			"This assumes exe is an ELF file (specify rule prefix by setting the\n"+
 			outputPrefixEnv+" environment variable)")
 
 	flag.Parse()
@@ -189,7 +207,7 @@ func mainWithError() error {
 	}
 
 	for _, unveil := range unveils.unveils {
-		// TODO add flag to enable these log messages
+		// TODO add flag to enable these log messages of unveil and promises
 		log.Printf("unveiling %q", unveil.String())
 		err := unix.Unveil(unveil.filePath, unveil.perms)
 		if err != nil {
@@ -263,7 +281,6 @@ func elfDepUnveilPaths(elfPath string, foundLibPaths map[string]struct{}, libBuf
 			}
 
 			// TODO add check for shell characters
-			// TODO indent shell script to indicate child dependent libs
 			_, hasLib := foundLibPaths[libPath]
 			if !hasLib {
 				libBuf.Write([]byte(os.Getenv(outputPrefixEnv) + "-" + unveilsArg +
