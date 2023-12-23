@@ -137,6 +137,12 @@ func mainWithError() error {
 			"This assumes exe is an ELF file (specify rule prefix by setting the\n"+
 			outputPrefixEnv+" environment variable)")
 
+	passEnviron := flag.Bool(
+		passEnvironArg,
+		false,
+		"Pass all environment variables to the child process. If not\n"+
+			"specified only HOME and PATH are passed")
+
 	flag.Parse()
 
 	if *help {
@@ -220,8 +226,19 @@ func mainWithError() error {
 		return fmt.Errorf("failed to unveil block - %w", err)
 	}
 
-	// TODO filter environment variables
-	err = syscall.Exec(exePath, append([]string{exePath}, flag.Args()[1:]...), os.Environ())
+	// TODO add flag to allow specific environment variable to be passed
+	// example "-e SSH_AUTH_SOCK -e AWS_IAM_SECRET"
+	var environment []string
+	if *passEnviron {
+		environment = os.Environ()
+	} else {
+		environment = []string{
+			"HOME=" + os.Getenv("HOME"),
+			"PATH=" + os.Getenv("PATH"),
+		}
+	}
+
+	err = syscall.Exec(exePath, append([]string{exePath}, flag.Args()[1:]...), environment)
 	if err != nil {
 		return fmt.Errorf("failed to exec %q - %w", exePath, err)
 	}
