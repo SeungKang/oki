@@ -156,6 +156,11 @@ func mainWithError() error {
 		false,
 		"Skip unveil(2) of the exe path")
 
+	// This prevents the flag library from running flag.PrintDefaults
+	// when a flag parse error occurs
+	// This makes error messages much more readable for the user :)
+	flag.Usage = func() {}
+
 	flag.Parse()
 
 	if *help {
@@ -413,7 +418,6 @@ func (o *unveilFlag) Set(s string) error {
 		return fmt.Errorf("please separate unveil permissions and filepath with a ':'")
 	}
 
-	// TODO check if error message has enough information
 	if strings.TrimSpace(perms) == "" {
 		return fmt.Errorf("please provide a permissions string")
 	}
