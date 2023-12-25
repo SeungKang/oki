@@ -74,6 +74,7 @@ EXAMPLES
 	passAllEnvironArg          = "E"
 	advHelpArg                 = "H"
 	autogenerateUnveilRulesArg = "R"
+	debugArg                   = "d"
 	passEnvironArg             = "e"
 	helpArg                    = "h"
 	allowNoPromisesArg         = "k"
@@ -112,6 +113,11 @@ func mainWithError() error {
 		"Generate the unveil(2) rules for exe dependencies and exit.\n"+
 			"This assumes exe is an ELF file (specify rule prefix by setting the\n"+
 			outputPrefixEnv+" environment variable)")
+
+	debug := flag.Bool(
+		debugArg,
+		false,
+		"Enable debug logging")
 
 	var environs environFlag
 	flag.Var(
@@ -205,7 +211,15 @@ func mainWithError() error {
 			promisesArg, allowNoPromisesArg)
 	}
 
+	// var debugLogger *log.Logger
+	debugLogger := log.New(io.Discard, "", 0)
+	if *debug {
+		debugLogger = log.New(log.Writer(), "[debug] ", log.Flags()|log.Lmsgprefix)
+	}
+
 	if promisesStr != "" {
+		debugLogger.Printf("executing promise string: %q...", promisesStr)
+
 		err := unix.PledgeExecpromises(promisesStr)
 		if err != nil {
 			return fmt.Errorf("failed pledge exec - %w", err)
@@ -213,15 +227,18 @@ func mainWithError() error {
 	}
 
 	if !*skipExeUnveil {
-		err = unix.Unveil(exePath, "rx")
+		exePerms := "rx"
+		debugLogger.Printf("automatically unveiling \"%s:%s\"...", exePerms, exePath)
+
+		err = unix.Unveil(exePath, exePerms)
 		if err != nil {
 			return fmt.Errorf("failed to automatically unveil %q - %w", exePath, err)
 		}
 	}
 
 	for _, unveil := range unveils.unveils {
-		// TODO add flag to enable these log messages of unveil and promises
-		log.Printf("unveiling %q", unveil.String())
+		debugLogger.Printf("unveiling %q...", unveil.String())
+
 		err := unix.Unveil(unveil.filePath, unveil.perms)
 		if err != nil {
 			return fmt.Errorf("failed to unveil %q - %w", unveil.String(), err)
@@ -249,6 +266,13 @@ func mainWithError() error {
 		environment = os.Environ()
 	} else {
 		environment = append(environment, "HOME="+os.Getenv("HOME"), "PATH="+os.Getenv("PATH"))
+	}
+
+	if debugLogger.Writer() != io.Discard {
+		for _, keyValue := range environment {
+			name, _, _ := strings.Cut(keyValue, "=")
+			debugLogger.Printf("passing environment variable: %q...", name)
+		}
 	}
 
 	err = syscall.Exec(exePath, append([]string{exePath}, flag.Args()[1:]...), environment)
