@@ -357,10 +357,9 @@ func elfDepUnveilPaths(elfPath string, foundLibPaths map[string]struct{}, libBuf
 			break
 		}
 
-		// TODO make this an error message and add log to figure out why it could not find library
+		// TODO add flag to make this error a log message
 		if !foundLib {
-			log.Printf("could not find the library path for: %q", lib)
-			continue
+			return fmt.Errorf("could not find library: %q - searched in %q", lib, runPaths)
 		}
 
 	}
