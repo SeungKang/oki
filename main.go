@@ -40,7 +40,7 @@ DESCRIPTION
   permission characters in the unveil(2) manual.
 
   By default ` + appName + ` will pass the HOME and PATH environment variables to the
-  child process. This behavior can be changed with the -` + passEnvironArg + ` flag to pass all
+  child process. This behavior can be changed with the -` + passAllEnvironArg + ` flag to pass all
   environment variables to the child process.
 
 EXAMPLES
@@ -71,9 +71,10 @@ EXAMPLES
 
 	outputPrefixEnv = "OKI_OUTPUT_PREFIX"
 
-	passEnvironArg             = "E"
+	passAllEnvironArg          = "E"
 	advHelpArg                 = "H"
 	autogenerateUnveilRulesArg = "R"
+	passEnvironArg             = "e"
 	helpArg                    = "h"
 	allowNoPromisesArg         = "k"
 	promisesArg                = "p"
@@ -90,13 +91,12 @@ func main() {
 	}
 }
 
-// TODO make debug showing what pledges and unveils are used
 // oki -p "stdio" -p "inet" -p "error" -u "r:/tmp" -u "rc:/foo" -- rizin -AA /tmp/memla
 // oki -U "r:/usr/local/lib/librz_.*" -- rizin -AA /tmp/memla
 // oki -U "r:/usr/local/lib/librz_*" -- rizin -AA /tmp/memla
 func mainWithError() error {
-	passEnviron := flag.Bool(
-		passEnvironArg,
+	passAllEnviron := flag.Bool(
+		passAllEnvironArg,
 		false,
 		"Pass all environment variables to the child process. If not\n"+
 			"specified only HOME and PATH are passed")
@@ -112,6 +112,13 @@ func mainWithError() error {
 		"Generate the unveil(2) rules for exe dependencies and exit.\n"+
 			"This assumes exe is an ELF file (specify rule prefix by setting the\n"+
 			outputPrefixEnv+" environment variable)")
+
+	var environs environFlag
+	flag.Var(
+		&environs,
+		passEnvironArg,
+		"Pass environment `variable` to the child process (can be specified\n"+
+			"multiple times)")
 
 	help := flag.Bool(
 		helpArg,
@@ -226,16 +233,22 @@ func mainWithError() error {
 		return fmt.Errorf("failed to unveil block - %w", err)
 	}
 
-	// TODO add flag to allow specific environment variable to be passed
+	// TODO if both -E -e then return an error
 	// example "-e SSH_AUTH_SOCK -e AWS_IAM_SECRET"
 	var environment []string
-	if *passEnviron {
+	for _, environ := range environs.environs {
+		val, present := os.LookupEnv(environ)
+		if present {
+			environment = append(environment, environ+"="+val)
+		} else {
+			return fmt.Errorf("%q environment variable not found", environ)
+		}
+	}
+
+	if *passAllEnviron {
 		environment = os.Environ()
 	} else {
-		environment = []string{
-			"HOME=" + os.Getenv("HOME"),
-			"PATH=" + os.Getenv("PATH"),
-		}
+		environment = append(environment, "HOME="+os.Getenv("HOME"), "PATH="+os.Getenv("PATH"))
 	}
 
 	err = syscall.Exec(exePath, append([]string{exePath}, flag.Args()[1:]...), environment)
@@ -323,6 +336,23 @@ func elfDepUnveilPaths(elfPath string, foundLibPaths map[string]struct{}, libBuf
 
 	}
 
+	return nil
+}
+
+type environFlag struct {
+	environs []string
+}
+
+func (o *environFlag) String() string {
+	if len(o.environs) == 0 {
+		return ""
+	}
+
+	return "'" + strings.Join(o.environs, "', '") + "'"
+}
+
+func (o *environFlag) Set(s string) error {
+	o.environs = append(o.environs, s)
 	return nil
 }
 
