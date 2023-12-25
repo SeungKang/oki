@@ -389,8 +389,11 @@ type promiseFlag struct {
 }
 
 func (o *promiseFlag) String() string {
-	// TODO fix formatting
-	return strings.Join(o.promises, " ")
+	if len(o.promises) == 0 {
+		return ""
+	}
+
+	return "'" + strings.Join(o.promises, "', '") + "'"
 }
 
 func (o *promiseFlag) Set(s string) error {
@@ -403,10 +406,17 @@ type unveilFlag struct {
 }
 
 func (o *unveilFlag) String() string {
-	var str string
-	// TODO fix formatting
-	for _, config := range o.unveils {
-		str += config.String() + " "
+	numUnveils := len(o.unveils)
+	if numUnveils == 0 {
+		return ""
+	}
+
+	str := "'"
+	for i, config := range o.unveils {
+		str += config.String() + "'"
+		if numUnveils > 1 && i != numUnveils-1 {
+			str += ", '"
+		}
 	}
 	return str
 }
