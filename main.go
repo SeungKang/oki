@@ -255,7 +255,10 @@ func mainWithError() error {
 		return fmt.Errorf("failed to unveil block - %w", err)
 	}
 
-	// TODO if both -E -e then return an error
+	if *passAllEnviron && len(environs.environs) > 0 {
+		return fmt.Errorf("specifying both -%s and -%s is unsupported", passAllEnvironArg, passEnvironArg)
+	}
+
 	// example "-e SSH_AUTH_SOCK -e AWS_IAM_SECRET"
 	var environment []string
 	for _, environ := range environs.environs {
@@ -269,7 +272,9 @@ func mainWithError() error {
 
 	if *passAllEnviron {
 		environment = os.Environ()
-	} else {
+	} else if len(environs.environs) == 0 {
+		// if user did not specify individual environment variables,
+		// automatically pass HOME and PATH to child process
 		environment = append(environment, "HOME="+os.Getenv("HOME"), "PATH="+os.Getenv("PATH"))
 	}
 
