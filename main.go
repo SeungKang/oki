@@ -45,9 +45,10 @@ DESCRIPTION
   (e.g. "r:/tmp"). The permission string should match one or more of the
   permission characters in the unveil(2) manual.
 
-  By default ` + appName + ` will pass the HOME and PATH environment variables to
+  By default ` + appName + ` will only pass the HOME and PATH environment variables to
   target-program. This behavior can be changed with the -` + passAllEnvironArg + ` flag to pass all
-  environment variables to target-program.
+  environment variables to target-program. Specify the -` + passEnvironArg + ` flag to pass
+  a specific environment variable to target-program.
 
 EXAMPLES
   For examples, please execute: ` + appName + ` -` + advHelpArg + `
@@ -117,9 +118,9 @@ func mainWithError() error {
 	getELFDepUnveilPaths := flag.Bool(
 		autogenerateUnveilRulesArg,
 		false,
-		"Generate the unveil(2) rules for target-program's imported libraries and exit.\n"+
-			"This assumes target-program is an ELF file (specify rule prefix by setting the\n"+
-			outputPrefixEnv+" environment variable)")
+		"Generate unveil(2) rules for target-program's imported libraries and\n"+
+			"exit. This assumes target-program is an ELF file (specify rule prefix\n"+
+			"by setting the "+outputPrefixEnv+" environment variable)")
 
 	debug := flag.Bool(
 		debugArg,
