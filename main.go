@@ -56,7 +56,7 @@ OPTIONS
 EXAMPLES
   o  The following example autogenerates unveil rules for the rizin program:
 
-       $ ` + appName + ` -` + autogenerateUnveilRulesArg + ` /usr/local/bin/rizin` + `
+       $ ` + appName + ` -` + autogenerateUnveilRulesArg + ` /usr/local/bin/rizin
 
   o  The following example runs ` + appName + ` on the git program:
 
