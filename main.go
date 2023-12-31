@@ -26,7 +26,9 @@ const (
 	usage   = appName + `
 
 SYNOPSIS
-  ` + appName + ` [options] <target-program>
+  ` + appName + ` -` + autogenerateUnveilRulesArg + ` target-program
+  ` + appName + ` -` + promisesArg + ` <promise> [options] target-program [target-program-options]
+  ` + appName + ` -` + allowNoPromisesArg + ` [options] target-program [target-program-options]
 
 DESCRIPTION
   ` + appName + ` applies pledge(2) and unveil(2) restrictions to target-program,
@@ -115,8 +117,8 @@ func mainWithError() error {
 	getELFDepUnveilPaths := flag.Bool(
 		autogenerateUnveilRulesArg,
 		false,
-		"Generate the unveil(2) rules for exe dependencies and exit.\n"+
-			"This assumes exe is an ELF file (specify rule prefix by setting the\n"+
+		"Generate the unveil(2) rules for target-program's imported libraries and exit.\n"+
+			"This assumes target-program is an ELF file (specify rule prefix by setting the\n"+
 			outputPrefixEnv+" environment variable)")
 
 	debug := flag.Bool(
@@ -128,7 +130,7 @@ func mainWithError() error {
 	flag.Var(
 		&environs,
 		passEnvironArg,
-		"Pass environment `variable` to the target program (can be specified\n"+
+		"Pass environment `variable` to the target-program (can be specified\n"+
 			"multiple times)")
 
 	help := flag.Bool(
