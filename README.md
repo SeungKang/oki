@@ -36,7 +36,7 @@ unveil rules, and environment variables applied to the child process.
 Pledge violations are logged in `/var/log/messages`.
 
 ## Special Thanks
-A mega thank you to Stephan Fox Jr, he's the bestest. Stephan played a 
+A mega thank you to [Stephan Fox Jr](https://github.com/stephen-fox), he's the best :). Stephan played a 
 significant role in assisting me with this project and discussions on its 
 functionality. I'm eternally grateful for his support, encouragement, patience, 
-and guidance through this project. I can't wait to do more. :)
+and guidance through this project. I can't wait to do more.
