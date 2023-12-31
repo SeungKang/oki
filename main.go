@@ -1,4 +1,5 @@
-// oki automates the execution of pledge(2) and unveil(2)
+// oki applies pledge(2) and unveil(2) restrictions to target-program,
+// reducing the blast radius of a security vulnerability in target-program.
 package main
 
 // (cd ~/src/oki && GOOS=openbsd go build && scp oki re-shared-obsd:~/)
@@ -25,12 +26,15 @@ const (
 	usage   = appName + `
 
 SYNOPSIS
-  ` + appName + ` [options] </path/to/program|program-in-path>
+  ` + appName + ` [options] <target-program>
 
 DESCRIPTION
-  ` + appName + ` automates execution of pledge(2) and unveil(2) to reduce the blast
-  radius of a program. Blast radius refers to the overall impact of a potential
-  security compromise.
+  ` + appName + ` applies pledge(2) and unveil(2) restrictions to target-program,
+  reducing the blast radius of a security vulnerability in target-program.
+
+  target-program can be a relative or absolute filepath to an executable file.
+  If target-program is not a filepath, then the directories named by the PATH
+  environment variable are searched.
 
   The promise string provided to the -` + promisesArg + ` flag is passed to the pledge(2)
   system call and should match one of the promises listed in pledge(2) manual.
@@ -39,9 +43,9 @@ DESCRIPTION
   (e.g. "r:/tmp"). The permission string should match one or more of the
   permission characters in the unveil(2) manual.
 
-  By default ` + appName + ` will pass the HOME and PATH environment variables to the
-  child process. This behavior can be changed with the -` + passAllEnvironArg + ` flag to pass all
-  environment variables to the child process.
+  By default ` + appName + ` will pass the HOME and PATH environment variables to
+  target-program. This behavior can be changed with the -` + passAllEnvironArg + ` flag to pass all
+  environment variables to target-program.
 
 EXAMPLES
   For examples, please execute: ` + appName + ` -` + advHelpArg + `
@@ -54,14 +58,18 @@ OPTIONS
 	advHelpDoc = appName + `
 
 EXAMPLES
-  o  The following example autogenerates unveil rules for the rizin program:
+  o  The following example generates unveil rules for rizin's libraries:
 
        $ ` + appName + ` -` + autogenerateUnveilRulesArg + ` /usr/local/bin/rizin
+       -` + unveilsArg + ` 'r:/usr/local/lib/librz_util.so.0.7' \
+       -` + unveilsArg + ` 'r:/usr/lib/libm.so.10.1' \
+       -` + unveilsArg + ` 'r:/usr/lib/libutil.so.16.0' \
+       (...)
 
   o  The following example runs ` + appName + ` on the git program:
 
        $ ` + appName + ` -` + promisesArg + ` "stdio" -` + promisesArg + ` "inet" -` + promisesArg +
-		` "error" -` + unveilsArg + ` "r:/tmp" -` + unveilsArg + ` "rc:/foo" -- git pull
+		` "error" -` + unveilsArg + ` "r:/tmp" -` + unveilsArg + ` "rc:/foo" -- git
 
      The above example enforces the pledge(2) promises: "stdio", "inet",
      and "error". It also runs unveil(2) on the following paths:
@@ -92,14 +100,11 @@ func main() {
 	}
 }
 
-// oki -p "stdio" -p "inet" -p "error" -u "r:/tmp" -u "rc:/foo" -- rizin -AA /tmp/memla
-// oki -U "r:/usr/local/lib/librz_.*" -- rizin -AA /tmp/memla
-// oki -U "r:/usr/local/lib/librz_*" -- rizin -AA /tmp/memla
 func mainWithError() error {
 	passAllEnviron := flag.Bool(
 		passAllEnvironArg,
 		false,
-		"Pass all environment variables to the child process. If not\n"+
+		"Pass all environment variables to the target program. If not\n"+
 			"specified only HOME and PATH are passed")
 
 	advHelp := flag.Bool(
@@ -123,7 +128,7 @@ func mainWithError() error {
 	flag.Var(
 		&environs,
 		passEnvironArg,
-		"Pass environment `variable` to the child process (can be specified\n"+
+		"Pass environment `variable` to the target program (can be specified\n"+
 			"multiple times)")
 
 	help := flag.Bool(
@@ -274,7 +279,7 @@ func mainWithError() error {
 		environment = os.Environ()
 	} else if len(environs.environs) == 0 {
 		// if user did not specify individual environment variables,
-		// automatically pass HOME and PATH to child process
+		// automatically pass HOME and PATH to target program
 		environment = append(environment, "HOME="+os.Getenv("HOME"), "PATH="+os.Getenv("PATH"))
 	}
 
