@@ -15,6 +15,32 @@ reducing the blast radius of a security vulnerability in target-program.
   and write the rules to standard out. This helps with writing scripts that
   call oki on the target program.
 
+## Requirements
+
+- An OpenBSD system (the application can be compiled on any OS, but it relies on tools included with OpenBSD)
+- Go (Golang)
+
+## Installation
+
+The preferred method of installation is using `go install` (as this is
+a Golang application). This automates downloading and building Go
+applications from source in a secure manner. By default, applications
+are copied into `~/go/bin/`.
+
+You must first [install Go](https://golang.org/doc/install). If you are
+compiling the application on OpenBSD, you can install Go by executing:
+
+```sh
+doas pkg_add go
+```
+
+After installing Go, run the following commands to install the application:
+
+```sh
+go install github.com/SeungKang/oki@latest
+doas cp ~/go/bin/oki /usr/local/bin/
+```
+
 ## Examples
 
 ### The following example generates unveil rules for rizin's libraries:
