@@ -3,21 +3,52 @@
 oki applies pledge(2) and unveil(2) restrictions to target-program,
 reducing the blast radius of a security vulnerability in target-program.
 
+## Synopsis
+
+```
+oki -R target-program
+oki -p <promise> [options] target-program [target-program-options]
+oki -k [options] target-program [target-program-options]
+```
+
+## How does this work?
+
+Calling pledge on a program restricts the set of allowed system calls. Each set
+of permitted system calls is known as a `promise` which can be combined.
+These promise strings are documented in `man 2 pledge`. If a program executes
+a system call that is not permitted by the promises, the kernel immediately
+terminates the program, delivering a core file if possible.
+
+oki applies pledge restrictions using pledge's `execpromises` argument.
+This allows oki to apply pledge only to a newly executed process and not the
+current process. The user specifies promises using `-p promise`.
+
+Calling unveil on a program removes visibility of the entire filesystem, expect
+for the specified path and permissions. Additional calls can set permissions at
+other points in the filesystem hierarchy. When applied to a directory,
+the permissions will apply to any file in the subtree of that directory.
+
+oki unveils paths by calling unveil for each `-u permission:path` specified by
+the user. When oki executes the target-program, unveil restrictions are
+automatically inherited by the target-program. By default, oki automatically
+unveils the target-program executable specified by the user.
+
 ## Features
 
-- Executes specified promise strings to the `pledge(2)` system call on the 
-  target program.
-- Executes specified filepath and permissions to the `unveil(2)` system call on 
-  the target program.
-- Filters only HOME and PATH environment variables to the target program.
-- Optionally pass specific environment variables to the target program.
-- Autogenerate unveil rules for the imported libraries of the target program
+- Applies specified promise strings to the `pledge(2)` system call on the
+  target-program.
+- Applies specified filepath and permissions to the `unveil(2)` system call on
+  the target-program.
+- Filters only HOME and PATH environment variables to the target-program.
+- Optionally pass specific environment variables to the target-program.
+- Autogenerate unveil rules for the imported libraries of the target-program
   and write the rules to standard out. This helps with writing scripts that
-  call oki on the target program.
+  call oki on the target-program.
 
 ## Requirements
 
-- An OpenBSD system (the application can be compiled on any OS, but it relies on tools included with OpenBSD)
+- An OpenBSD system (the application can be compiled on any OS, but it relies
+  on tools included with OpenBSD)
 - Go (Golang)
 
 ## Installation
@@ -67,7 +98,7 @@ and "error". It also runs `unveil(2)` on the following paths:
 ## Troubleshooting
 
 The `-d` option enables debug mode, which will log the pledge promise strings,
-unveil rules, and environment variables applied to the target program.
+unveil rules, and environment variables applied to the target-program.
 Pledge violations are logged in `/var/log/messages`.
 
 ## Special Thanks
