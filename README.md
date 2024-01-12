@@ -23,7 +23,7 @@ oki applies pledge restrictions using pledge's `execpromises` argument.
 This allows oki to apply pledge only to a newly executed process and not the
 current process. The user specifies promises using `-p promise`.
 
-Calling unveil on a program removes visibility of the entire filesystem, expect
+Calling unveil on a program removes visibility of the entire filesystem, except
 for the specified path and permissions. Additional calls can set permissions at
 other points in the filesystem hierarchy. When applied to a directory,
 the permissions will apply to any file in the subtree of that directory.
@@ -47,8 +47,7 @@ unveils the target-program executable specified by the user.
 
 ## Requirements
 
-- An OpenBSD system (the application can be compiled on any OS, but it relies
-  on tools included with OpenBSD)
+- An OpenBSD system
 - Go (Golang)
 
 ## Installation
